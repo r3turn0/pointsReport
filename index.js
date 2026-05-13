@@ -50,16 +50,6 @@ async function addN2R2Column(fileName, worksheetName) {
             await workbook.xlsx.readFile(fileName);
             console.log('File read successfully:', fileName, 'looking for worksheet:', worksheetName);
             const regex = new RegExp(worksheetName, 'i');
-            // const worksheet = workbook.worksheets.forEach(ws => {
-            //     console.log('Worksheet name:', ws.name)
-            //     if(ws.name && regex.test(ws.name)) {
-            //         console.log('Found matching worksheet:', ws.name);
-            //         return ws;
-            //     }
-            //     else {
-            //         //console.log('No matching worksheet found in file:', fileName);
-            //     }
-            // });
             const worksheet = workbook.worksheets.find(ws => ws.name && regex.test(ws.name));
             if (!worksheet) {
                 console.error('Worksheet not found:', worksheetName, 'in file:', fileName);
