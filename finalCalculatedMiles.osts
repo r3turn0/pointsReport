@@ -1,15 +1,6 @@
 
 function main(workbook: ExcelScript.Workbook) {
-  // Find worksheet that contains "Detailed Mileage" in its name
-  const sheets = workbook.getWorksheets();
-  const sheet = sheets.find(s =>
-    s.getName().toLowerCase().includes("detailed mileage")
-  );
-
-  if (!sheet) {
-    throw new Error('No worksheet found containing "Detailed Mileage".');
-  }
-
+  const sheet = workbook.getActiveWorksheet();
   const usedRange = sheet.getUsedRange();
 
   if (!usedRange) {
