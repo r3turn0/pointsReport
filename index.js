@@ -73,7 +73,7 @@ async function listFiles() {
         return new Promise(async(resolve, reject) => {
             const res = await axios.get(`https://graph.microsoft.com/v1.0/users/${process.env.UPN}/drive/root/children`, {
             headers: {
-            Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token}`
             }
         });
         if(!res.data || !res.data.value) {
@@ -91,6 +91,7 @@ async function listFiles() {
 }
 //getUsers();
 listFiles();
+
 // Alternative using MSAL and Graph client
 // const cca = new ConfidentialClientApplication({
 //   auth: {
