@@ -90,7 +90,7 @@ async function listFiles() {
   }
 }
 //getUsers();
-listFiles();
+//listFiles();
 
 // Alternative using MSAL and Graph client
 // const cca = new ConfidentialClientApplication({
