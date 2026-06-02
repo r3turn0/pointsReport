@@ -182,7 +182,7 @@ async function listFiles() {
 async function readDirectory(filePath) {
     try {
         return new Promise((resolve, reject) => {
-            fs.readdir('.', (err, files) => {
+            fs.readdir(filePath, (err, files) => {
                 if (err) {
                     console.error('Error reading directory:', err);
                     reject(err);
@@ -280,7 +280,7 @@ async function addN2R2Column(fileName, worksheetName) {
 // Main function to read directory and process each file
 async function main() {
     try {
-        const files = await readDirectory();
+        const files = await readDirectory('/lib');
         for (const file of files) {
             await addN2R2Column(file, 'Detailed Mileage Analysis');
         }
