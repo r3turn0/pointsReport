@@ -1,0 +1,198 @@
+function main(workbook: ExcelScript.Workbook) {
+    const sourceSheetName = "Worker Productivity Report";
+    const matrixSheetName = "Offer Letter Matrix";
+
+    const sourceSheet = workbook.getWorksheet(sourceSheetName);
+
+    // ✅ Guard source sheet
+    if (!sourceSheet) {
+        throw new Error(`Source sheet '${sourceSheetName}' not found.`);
+    }
+
+    const data = sourceSheet.getUsedRange().getValues();
+    const headers = data[0];
+
+    const workerIdx = headers.indexOf("Worker Name");
+    const dateIdx = headers.indexOf("Service Date");
+    const visitIdx = headers.indexOf("Visit Type");
+    const pointsIdx = headers.indexOf("Points");
+
+    // Helpers
+    
+    type ExcelValue = string | number | boolean;
+
+    function parseExcelDate(value: ExcelValue): number {
+        if (typeof value === "number") {
+            return new Date((value - 25569) * 86400 * 1000).getTime();
+        }
+
+        return new Date(String(value)).getTime();
+    }
+
+    function formatDate(value: ExcelValue): string {
+        const d = new Date(parseExcelDate(value));
+        return d.toLocaleDateString("en-US");
+    }
+
+    function safeSheetName(name: string): string {
+        return name.replace(/[\\\/\*\?:\[\]]/g, "").substring(0, 31);
+    }
+
+    // Load each threshold
+    const matrixSheet = workbook.getWorksheet(matrixSheetName);
+
+    let thresholdMap = new Map<string,number>();
+
+    if (matrixSheet) {
+        const matrixData = matrixSheet.getUsedRange().getValues();
+        const matrixHeaders = matrixData[0];
+
+        const nameIdx = matrixHeaders.indexOf("Employee Name");
+        const thresholdIdx = matrixHeaders.indexOf("Threshold (pt)");
+
+        for (let i = 1; i < matrixData.length; i++) {
+            thresholdMap.set(
+                String(matrixData[i][nameIdx]),
+                Number(matrixData[i][thresholdIdx])
+            );
+        }
+    } else {
+        console.log(
+            `Sheet '${matrixSheetName}' not found. Defaulting thresholds to 0.`
+        );
+    }
+
+    // Group by worker (O(N))
+    type variant = (string | number | boolean)[][];
+    const workerMap = new Map<string,variant>();
+
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const worker = String(row[workerIdx]);
+
+        if (!workerMap.has(worker)) {
+            workerMap.set(worker, []);
+        }
+
+        workerMap.get(worker)!.push(row);
+    }
+
+    const workers = Array.from(workerMap.keys()).sort();
+
+    // Process each worker
+    for (const worker of workers) {
+        const safeName = safeSheetName(worker);
+
+        let sheet = workbook.getWorksheet(safeName);
+        if (!sheet) {
+            sheet = workbook.addWorksheet(safeName);
+        } else {
+            sheet.getUsedRange()?.clear();
+        }
+
+        const rows = workerMap.get(worker)!;
+
+        
+        const timestamps = rows.map(r => parseExcelDate(r[dateIdx]));
+
+        const minDate = new Date(Math.min(...timestamps));
+        const maxDate = new Date(Math.max(...timestamps));
+
+        const weekLabel = `Week ${minDate.toLocaleDateString("en-US")} - ${maxDate.toLocaleDateString("en-US")}`;
+
+
+        // Sort safely
+        rows.sort((a, b) =>
+            parseExcelDate(a[dateIdx]) - parseExcelDate(b[dateIdx])
+        );
+
+        // Group by date
+
+        const grouped = new Map<string, variant>();
+
+        for (const r of rows) {
+            const d = formatDate(r[dateIdx]);
+
+            if (!grouped.has(d)) {
+                grouped.set(d, []);
+            }
+
+            grouped.get(d)!.push(r);
+        }
+
+        const sortedDates = Array.from(grouped.keys()).sort()
+
+        // Compute totals
+        let totalPoints = 0;
+        for (const r of rows) {
+            totalPoints += Number(r[pointsIdx]) || 0;
+        }
+
+        const threshold = thresholdMap.get(worker) ?? 0;
+        
+        // Build EXACT report structure
+        let output: (string | number)[][] = [];
+
+        // Header (matches your Excel file)
+        output.push([`${worker} Weekly Points Report`]);
+        output.push([
+            `Bonus per visit for anything over ${threshold} points.`
+        ]);
+        output.push([weekLabel, ""]);
+        output.push(["",""]);
+
+        // Summary
+        output.push(["Bonus Points", 0]);
+        output.push(["Bonus Amount", 0]);
+        output.push(["",""]);
+
+        // Table
+        output.push(["Row Labels", "Sum of Points"]);
+
+        // Worker total row (critical fix vs your old script)
+        output.push([worker, totalPoints]);
+
+        // Render Data
+        for (const date of sortedDates) {
+            output.push([date, ""]);
+
+            const visitRows = grouped.get(date)!;
+
+            for (const r of visitRows) {
+                output.push([
+                    `  ${r[visitIdx]}`,
+                    Number(r[pointsIdx]) || 0
+                ]);
+            }
+        }
+
+        // Write to sheet
+        const range = sheet.getRangeByIndexes(
+            0,
+            0,
+            output.length,
+            output[0].length
+        );
+
+        range.setValues(output);
+
+        // Formatting
+        for (let i = 0; i < output.length; i++) {
+            const label = String(output[i][0]);
+
+            if (
+                i === 0 || // title
+                label === "Row Labels" ||
+                label === worker ||
+                !label.startsWith(" ")
+            ) {
+                sheet.getRange(`A${i + 1}:B${i + 1}`)
+                    .getFormat()
+                    .getFont()
+                    .setBold(true);
+            }
+        }
+
+        sheet.getUsedRange().getFormat().autofitColumns();
+    }
+}
